@@ -59,6 +59,8 @@ public class TodoAppExample {
             false // Don't auto-fetch
     );
 
+    private static Resource<Void> saveToServerResource;
+
     public static void main(String[] args) throws Exception {
         System.out.println("=== Todo App Example ===\n");
 
@@ -79,7 +81,7 @@ public class TodoAppExample {
         // Demo interactions
         System.out.println("\n--- Marking first todo as completed ---");
         toggleTodo(0);
-        Thread.sleep(50);
+        Thread.sleep(1000);
 
         System.out.println("\n--- Adding a new todo ---");
         addTodo("Write documentation");
@@ -132,14 +134,24 @@ public class TodoAppExample {
         });
 
         // Auto-save effect (debounced)
-        effect(() -> {
+        saveToServerResource = resource(() -> {
             todos.get();
 
             // Debounce saves
-            delay(500, TimeUnit.MILLISECONDS)
+            return delay(500, TimeUnit.MILLISECONDS)
                     .thenRun(() -> {
                         System.out.println("💾 Auto-saving todos...");
                     });
+        });
+
+        saveToServerResource.subscribe(state -> {
+            if (state.isLoading()) {
+                System.out.println("⏳ Saving to server in progress...");
+            } else if (state.isSuccess()) {
+                System.out.println("✅ Saving to server completed!");
+            } else if (state.isError()) {
+                System.err.println("❌ Error saving to server: " + state.getError());
+            }
         });
     }
 

@@ -95,8 +95,8 @@ public final class JSignals {
     /**
      * Runs a callback on the next tick (microtask).
      */
-    public static void nextTick(Runnable callback) {
-        threadPool.submit(callback);
+    public static CompletableFuture<Void> nextTick(Runnable callback) {
+        return threadPool.submit(callback);
     }
 
     /**

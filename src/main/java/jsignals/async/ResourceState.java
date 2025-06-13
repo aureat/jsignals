@@ -14,11 +14,14 @@ public final class ResourceState<T> {
         IDLE,
         LOADING,
         SUCCESS,
-        ERROR
+        ERROR,
+        CANCELLED
     }
 
     private final Status status;
+
     private final T data;
+
     private final Throwable error;
 
     // Private constructor to enforce usage of static factory methods
@@ -31,6 +34,7 @@ public final class ResourceState<T> {
     // --- Static Factory Methods ---
 
     private static final ResourceState<?> IDLE_INSTANCE = new ResourceState<>(Status.IDLE, null, null);
+
     private static final ResourceState<?> LOADING_INSTANCE = new ResourceState<>(Status.LOADING, null, null);
 
     /**
@@ -51,6 +55,7 @@ public final class ResourceState<T> {
 
     /**
      * Creates a success state with the given data.
+     *
      * @param data The successfully loaded data.
      */
     public static <T> ResourceState<T> success(T data) {
@@ -63,11 +68,21 @@ public final class ResourceState<T> {
 
     /**
      * Creates an error state with the given error.
+     *
      * @param error The error that occurred.
      */
     public static <T> ResourceState<T> error(Throwable error) {
         Objects.requireNonNull(error, "Error cannot be null for error state");
         return new ResourceState<>(Status.ERROR, null, error);
+    }
+
+    /**
+     * Creates an cancelled state with the given error.
+     *
+     * @param error The error that occurred.
+     */
+    public static <T> ResourceState<T> cancelled(Throwable error) {
+        return new ResourceState<>(Status.CANCELLED, null, error);
     }
 
     // --- Getter Methods ---
@@ -104,6 +119,10 @@ public final class ResourceState<T> {
         return status == Status.ERROR;
     }
 
+    public boolean isCancelled() {
+        return status == Status.CANCELLED;
+    }
+
     // --- Overrides ---
 
     @Override
@@ -134,4 +153,5 @@ public final class ResourceState<T> {
         sb.append('}');
         return sb.toString();
     }
+
 }

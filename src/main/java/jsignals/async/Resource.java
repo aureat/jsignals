@@ -1,12 +1,15 @@
 package jsignals.async;
 
+import jsignals.core.Disposable;
 import jsignals.core.ReadableRef;
 import jsignals.core.Ref;
 import jsignals.runtime.DependencyTracker;
 import jsignals.runtime.DependencyTracker.Dependent;
 
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class Resource<T> implements ReadableRef<ResourceState<T>>, Dependent {
@@ -36,14 +39,18 @@ public class Resource<T> implements ReadableRef<ResourceState<T>>, Dependent {
 
     @Override
     public ResourceState<T> get() {
-        // Track access to this resource
-//        tracker.trackAccess(this); // TODO QUESTION: Should we track access here
+//        tracker.trackAccess(this); // TODO QUESTION: Should we track access here?
         return state.get();
     }
 
     @Override
     public ResourceState<T> getValue() {
         return state.getValue();
+    }
+
+    public Disposable subscribe(Consumer<ResourceState<T>> listener) {
+        Objects.requireNonNull(listener, "Listener cannot be null");
+        return state.subscribe(listener);
     }
 
     @Override
@@ -90,7 +97,16 @@ public class Resource<T> implements ReadableRef<ResourceState<T>>, Dependent {
                     })
                     .exceptionally(error -> {
                         Throwable cause = error.getCause();
-                        System.out.println("  [Resource] Fetch failed: " + cause.toString());
+                        System.err.println("  [Resource] Fetch failed with error: " + error);
+                        System.err.println("  [Resource] Fetch failed with cause: " + cause);
+
+                        // Handle cancellation specifically
+                        if (cause instanceof CancellationException) {
+                            System.err.println("  [Resource] Fetch was cancelled");
+                            state.set(ResourceState.cancelled(cause));
+                            return null;
+                        }
+
                         state.set(ResourceState.error(cause));
                         return null;
                     });
@@ -106,8 +122,12 @@ public class Resource<T> implements ReadableRef<ResourceState<T>>, Dependent {
         }
     }
 
-    public CompletableFuture<T> refetch() {
-        return fetch();
+    public void cancel() {
+        if (currentFetch != null && !currentFetch.isDone()) {
+            System.out.println("  [Resource] Cancelling current fetch...");
+            currentFetch.cancel(true);
+        }
+        state.set(ResourceState.idle());
     }
 
     public boolean isLoading() {

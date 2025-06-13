@@ -162,7 +162,7 @@ public class AsyncReactiveExample1 {
             if (flakeyResource.hasError()) {
                 System.out.println("  Retry " + (retries + 1) + " - Error: " +
                         flakeyResource.getError().getMessage());
-                flakeyResource.refetch();
+                flakeyResource.fetch();
                 retries++;
             }
         }
