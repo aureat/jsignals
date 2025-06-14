@@ -46,7 +46,7 @@ public class EffectsTest {
         Ref<Integer> count = ref(0);
         StringBuilder watchLog = new StringBuilder();
 
-        var watcher = count.subscribe(value -> {
+        var watcher = count.watch(value -> {
             System.out.println("  [Watch] Count is now: " + value);
             watchLog.append("Count is now: ").append(value).append("\n");
         });
@@ -90,7 +90,7 @@ public class EffectsTest {
         Ref<Integer> value = ref(0);
         StringBuilder log = new StringBuilder();
 
-        var watcher = value.subscribe(v -> {
+        var watcher = value.watch(v -> {
             System.out.println("  [Watch] Watched value: " + v);
             log.append("Watched value: ").append(v).append("\n");
         });

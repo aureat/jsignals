@@ -1,10 +1,10 @@
-package jsignals.examples;
+package jsignals.tests;
 
 import java.util.concurrent.CompletableFuture;
 
 import static jsignals.JSignals.*;
 
-public class ResourceExample1 {
+public class ResourceTest1 {
 
     record User(int id, String name, int age) {
 

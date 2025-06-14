@@ -1,4 +1,4 @@
-package jsignals.examples;
+package jsignals.tests;
 
 import jsignals.core.ComputedRef;
 import jsignals.core.Disposable;
@@ -9,7 +9,7 @@ import static jsignals.JSignals.*;
 /**
  * Example demonstrating the reactive signals library.
  */
-public class ReactiveExample1 {
+public class ReactiveTest1 {
 
     public static void main(String[] args) {
 
@@ -57,7 +57,7 @@ public class ReactiveExample1 {
 
         // Watch specific value
         System.out.println("\n5. Watch:");
-        Disposable watcher = count.subscribe(value ->
+        Disposable watcher = count.watch(value ->
                 System.out.println("  [Watch] Count is now: " + value));
 
         count.set(30);

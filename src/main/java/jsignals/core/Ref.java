@@ -88,7 +88,7 @@ public class Ref<T> implements WritableRef<T> {
      * @param listener Called when the value changes
      * @return A Disposable to unsubscribe
      */
-    public Disposable subscribe(Consumer<T> listener) {
+    public Disposable watch(Consumer<T> listener) {
         Objects.requireNonNull(listener, "Listener cannot be null");
 
         RefSubscription<T> subscription = new RefSubscription<>(listener, this);
@@ -100,7 +100,7 @@ public class Ref<T> implements WritableRef<T> {
     /**
      * Subscribes to value changes with access to old and new values.
      */
-    public Disposable subscribe(BiConsumer<T, T> listener) {
+    public Disposable watch(BiConsumer<T, T> listener) {
         Objects.requireNonNull(listener, "Listener cannot be null");
 
         RefSubscription<T> subscription = new RefSubscription<>(

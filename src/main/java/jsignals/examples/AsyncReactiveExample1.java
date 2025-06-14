@@ -5,12 +5,13 @@ import jsignals.async.ResourceRef;
 import jsignals.core.ComputedRef;
 import jsignals.core.Disposable;
 import jsignals.core.Ref;
-import jsignals.tests.ComputedAsync;
 
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import static jsignals.JSignals.resource;
 
 /**
  * Example demonstrating async features of the reactive signals library.
@@ -24,7 +25,7 @@ public class AsyncReactiveExample1 {
 
         // 1. Basic ResourceRef usage
         System.out.println("1. ResourceRef Loading:");
-        ResourceRef<String> userData = JSignals.resource(() ->
+        ResourceRef<String> userData = resource(() ->
                 CompletableFuture.supplyAsync(() -> {
                     sleep(1000); // Simulate API delay
                     return "User: John Doe";
@@ -45,7 +46,7 @@ public class AsyncReactiveExample1 {
         System.out.println("\n2. Async Computed:");
         Ref<Integer> userId = JSignals.ref(1);
 
-        ComputedAsync<String> userProfile = JSignals.computedAsync(() ->
+        ResourceRef<String> userProfile = resource(() ->
                 CompletableFuture.supplyAsync(() -> {
                     int id = userId.get();
                     System.out.println("  [Fetching profile for user " + id + "...]");
@@ -96,13 +97,13 @@ public class AsyncReactiveExample1 {
         Ref<Integer> selectedUserId = JSignals.ref(1);
 
         // User data resource
-        ResourceRef<User> user = JSignals.resource(() -> {
+        ResourceRef<User> user = resource(() -> {
             int id = selectedUserId.get();
             return fetchUser(id);
         });
 
         // Posts resource (depends on user)
-        ResourceRef<List<Post>> posts = JSignals.resource(() -> {
+        ResourceRef<List<Post>> posts = resource(() -> {
             int id = selectedUserId.get();
             return fetchUserPosts(id);
         });
@@ -146,7 +147,7 @@ public class AsyncReactiveExample1 {
 
         // 5. Error Handling and Retry
         System.out.println("\n5. Error Handling:");
-        ResourceRef<String> flakeyResource = JSignals.resource(() ->
+        ResourceRef<String> flakeyResource = resource(() ->
                 CompletableFuture.supplyAsync(() -> {
                     if (random.nextBoolean()) {
                         throw new RuntimeException("Random failure!");

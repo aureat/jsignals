@@ -3,7 +3,7 @@ package jsignals.tests;
 import jsignals.core.ReadableRef;
 import jsignals.runtime.DependencyTracker;
 import jsignals.runtime.DependencyTracker.Dependent;
-import jsignals.runtime.JSignalsVThreadPool;
+import jsignals.runtime.JSignalsExecutor;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -19,7 +19,7 @@ public class ComputedAsync<T> implements ReadableRef<T>, Dependent {
 
     private final DependencyTracker tracker = DependencyTracker.getInstance();
 
-    private final JSignalsVThreadPool threadPool = JSignalsVThreadPool.getInstance();
+    private final JSignalsExecutor defaultExecutor = JSignalsExecutor.getInstance();
 
     private final AtomicReference<T> cachedValue = new AtomicReference<>();
 
@@ -79,7 +79,7 @@ public class ComputedAsync<T> implements ReadableRef<T>, Dependent {
         // Start new computation
         tracker.startTracking(this);
 
-        CompletableFuture<T> future = threadPool.submit(() -> {
+        CompletableFuture<T> future = defaultExecutor.submit(() -> {
                     try {
                         return asyncComputation.get();
                     } finally {

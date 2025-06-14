@@ -3,10 +3,13 @@ package jsignals;
 import jsignals.async.ResourceRef;
 import jsignals.core.*;
 import jsignals.runtime.EffectRunner;
-import jsignals.runtime.JSignalsVThreadPool;
-import jsignals.tests.ComputedAsync;
+import jsignals.runtime.JSignalsExecutor;
+import jsignals.runtime.JSignalsRuntime;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -18,9 +21,90 @@ public final class JSignals {
 
     private static final EffectRunner effectRunner = new EffectRunner();
 
-    private static final JSignalsVThreadPool threadPool = JSignalsVThreadPool.getInstance();
+    private static volatile JSignalsRuntime runtime;
+
+    private static final Object runtimeLock = new Object();
 
     private JSignals() { }
+
+    /**
+     * Initializes the JSignals shared runtime. Must be called before using
+     * any other methods that rely on the default runtime.
+     *
+     * @return The newly created runtime.
+     */
+    public static JSignalsRuntime initRuntime() {
+        synchronized (runtimeLock) {
+            if (runtime != null) {
+                throw new IllegalStateException("JSignalsRuntime is already initialized.");
+            }
+
+            runtime = new JSignalsRuntime();
+            System.out.println("[JSignals] Runtime initialized.");
+            return runtime;
+        }
+    }
+
+    /**
+     * Shuts down the shared JSignals runtime, releasing all resources.
+     */
+    public static void shutdownRuntime() {
+        synchronized (runtimeLock) {
+            if (runtime != null) {
+                runtime.close();
+                runtime = null;
+            }
+        }
+    }
+
+    /**
+     * Safely gets the active runtime, throwing an exception if it's not initialized.
+     */
+    private static JSignalsRuntime getRuntime() {
+        JSignalsRuntime r = runtime; // Volatile read
+        if (r == null) {
+            throw new IllegalStateException("JSignalsRuntime has not been initialized. Please call JSignals.initRuntime() first.");
+        }
+
+        return r;
+    }
+
+    /**
+     * Submits a task to run on a virtual thread using the shared runtime.
+     */
+    public static CompletableFuture<Void> submitTask(Runnable task) {
+        return getRuntime().getExecutor().submit(task);
+    }
+
+    /**
+     * Submits a value-returning task to run on a virtual thread.
+     */
+    public static <T> CompletableFuture<T> submitTask(Supplier<T> task) {
+        return getRuntime().getExecutor().submit(task);
+    }
+
+    /**
+     * Schedules a task to run after a delay using the shared runtime's scheduler.
+     */
+    public static ScheduledFuture<?> scheduleTask(Runnable task, long delay, TimeUnit unit) {
+        return getRuntime().getExecutor().schedule(task, delay, unit);
+    }
+
+    /**
+     * Delays execution for the specified duration.
+     */
+    public static CompletableFuture<Void> delay(long duration, TimeUnit unit) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        getRuntime().getExecutor().schedule(() -> future.complete(null), duration, unit);
+        return future;
+    }
+
+    /**
+     * Delays execution for the specified duration in milliseconds.
+     */
+    public static CompletableFuture<Void> delay(long duration) {
+        return delay(duration, TimeUnit.MILLISECONDS);
+    }
 
     /**
      * Creates a reactive reference with an initial value.
@@ -52,27 +136,84 @@ public final class JSignals {
     }
 
     /**
-     * Creates an async computed value that runs on virtual threads.
+     * Creates a resource with default settings: auto-fetches, uses the default executor, and has no debounce.
+     *
+     * @param fetcher The supplier that provides a CompletableFuture to fetch the resource.
+     * @return A new {@link ResourceRef} instance.
      */
-    public static <T> ComputedAsync<T> computedAsync(
-            Supplier<CompletableFuture<T>> asyncComputation) {
-        return new ComputedAsync<>(asyncComputation);
+    public static <T> ResourceRef<T> resource(Supplier<CompletableFuture<T>> fetcher) {
+        return new ResourceRef<>(fetcher, true, getRuntime().getExecutor(), Duration.ZERO);
     }
 
     /**
-     * Creates a resource for async data fetching.
+     * Creates a resource, specifying whether it should fetch automatically.
+     *
+     * @param fetcher   The supplier for the fetch operation.
+     * @param autoFetch Whether to automatically fetch the resource on creation.
+     * @return A new {@link ResourceRef} instance.
      */
-    public static <T> ResourceRef<T> resource(
-            Supplier<CompletableFuture<T>> fetcher) {
-        return new ResourceRef<>(fetcher, true);
+    public static <T> ResourceRef<T> resource(Supplier<CompletableFuture<T>> fetcher, boolean autoFetch) {
+        return new ResourceRef<>(fetcher, autoFetch, getRuntime().getExecutor(), Duration.ZERO);
     }
 
     /**
-     * Creates a resource that doesn't auto-fetch.
+     * Creates a resource with a custom debounce delay.
+     *
+     * @param fetcher       The supplier for the fetch operation.
+     * @param debounceDelay The delay to debounce fetch requests. If null or zero, no debouncing is applied.
+     * @return A new {@link ResourceRef} instance.
+     */
+    public static <T> ResourceRef<T> resource(Supplier<CompletableFuture<T>> fetcher, Duration debounceDelay) {
+        return new ResourceRef<>(fetcher, true, getRuntime().getExecutor(), debounceDelay);
+    }
+
+    /**
+     * Creates a resource with a custom executor.
+     *
+     * @param fetcher  The supplier for the fetch operation.
+     * @param executor The executor to run asynchronous parts of the fetch operation.
+     * @return A new {@link ResourceRef} instance.
+     */
+    public static <T> ResourceRef<T> resource(Supplier<CompletableFuture<T>> fetcher, Executor executor) {
+        return new ResourceRef<>(fetcher, true, executor, Duration.ZERO);
+    }
+
+    /**
+     * Creates a resource with a custom executor and debounce delay.
+     *
+     * @param fetcher       The supplier for the fetch operation.
+     * @param executor      The executor to run asynchronous parts of the fetch operation.
+     * @param debounceDelay The delay to debounce fetch requests.
+     * @return A new {@link ResourceRef} instance.
+     */
+    public static <T> ResourceRef<T> resource(Supplier<CompletableFuture<T>> fetcher, Executor executor, Duration debounceDelay) {
+        return new ResourceRef<>(fetcher, true, executor, debounceDelay);
+    }
+
+    /**
+     * Creates a resource with a custom auto-fetch behavior and debounce delay.
+     *
+     * @param fetcher       The supplier for the fetch operation.
+     * @param autoFetch     Whether to automatically fetch the resource on creation.
+     * @param debounceDelay The delay to debounce fetch requests.
+     * @return A new {@link ResourceRef} instance.
+     */
+    public static <T> ResourceRef<T> resource(Supplier<CompletableFuture<T>> fetcher, boolean autoFetch, Duration debounceDelay) {
+        return new ResourceRef<>(fetcher, autoFetch, getRuntime().getExecutor(), debounceDelay);
+    }
+
+    /**
+     * Creates a resource that can be fetched with a custom executor and debounce delay.
+     *
+     * @param fetcher       The supplier that provides a CompletableFuture to fetch the resource.
+     * @param autoFetch     Whether to automatically fetch the resource on creation.
+     * @param executor      The executor to run asynchronous parts of the fetch operation. If null, uses the default {@link JSignalsExecutor}.
+     * @param debounceDelay The delay to debounce fetch requests. If null or zero, no debouncing is applied.
+     * @return A new {@link ResourceRef} instance.
      */
     public static <T> ResourceRef<T> resource(
-            Supplier<CompletableFuture<T>> fetcher, boolean autoFetch) {
-        return new ResourceRef<>(fetcher, autoFetch);
+            Supplier<CompletableFuture<T>> fetcher, boolean autoFetch, Executor executor, Duration debounceDelay) {
+        return new ResourceRef<>(fetcher, autoFetch, executor, debounceDelay);
     }
 
     /**
@@ -80,39 +221,6 @@ public final class JSignals {
      */
     public static Disposable effect(Runnable effect) {
         return effectRunner.runEffect(effect);
-    }
-
-    /**
-     * Creates an async effect that runs on virtual threads.
-     */
-//    public static Disposable watchEffectAsync(
-//            Supplier<CompletableFuture<?>> asyncEffect) {
-//        AsyncEffect effect = new AsyncEffect(asyncEffect);
-//        effect.run();
-//        return effect;
-//    }
-
-    /**
-     * Runs a callback on the next tick (microtask).
-     */
-    public static CompletableFuture<Void> nextTick(Runnable callback) {
-        return threadPool.submit(callback);
-    }
-
-    /**
-     * Delays execution for the specified duration.
-     */
-    public static CompletableFuture<Void> delay(long duration, TimeUnit unit) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        threadPool.schedule(() -> future.complete(null), duration, unit);
-        return future;
-    }
-
-    /**
-     * Delays execution for the specified duration in milliseconds.
-     */
-    public static CompletableFuture<Void> delay(long duration) {
-        return delay(duration, TimeUnit.MILLISECONDS);
     }
 
     /**

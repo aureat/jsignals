@@ -3,7 +3,7 @@ package jsignals.tests;
 import jsignals.core.ReadableRef;
 import jsignals.runtime.DependencyTracker;
 import jsignals.runtime.DependencyTracker.Dependent;
-import jsignals.runtime.JSignalsVThreadPool;
+import jsignals.runtime.JSignalsExecutor;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -18,7 +18,7 @@ public class AsyncComputedRef<T> implements ReadableRef<CompletableFuture<T>>, D
 
     private final DependencyTracker tracker = DependencyTracker.getInstance();
 
-    private final JSignalsVThreadPool threadPool = JSignalsVThreadPool.getInstance();
+    private final JSignalsExecutor threadPool = JSignalsExecutor.getInstance();
 
     private volatile CompletableFuture<T> currentComputation;
 

@@ -1,13 +1,13 @@
 package jsignals.core;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.Tag;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Basic test for Ref implementation
@@ -35,7 +35,7 @@ public class RefTest {
     void testSubscriptions() {
         Ref<Integer> count = new Ref<>(0);
         List<Integer> values = new ArrayList<>();
-        Disposable sub = count.subscribe((v) -> values.add(v));
+        Disposable sub = count.watch((v) -> values.add(v));
 
         count.set(10);
         count.set(20);
@@ -49,7 +49,7 @@ public class RefTest {
     void testDisposal() {
         Ref<Integer> count = new Ref<>(0);
         List<Integer> values = new ArrayList<>();
-        Disposable sub = count.subscribe((v) -> values.add(v));
+        Disposable sub = count.watch((v) -> values.add(v));
 
         count.set(10);
         sub.dispose();
@@ -63,9 +63,10 @@ public class RefTest {
     void testNoNotificationOnSameValue() {
         Ref<String> text = new Ref<>("hello");
         AtomicInteger notificationCount = new AtomicInteger();
-        text.subscribe(v -> notificationCount.getAndIncrement());
+        text.watch(v -> notificationCount.getAndIncrement());
 
         text.set("hello"); // Same value
         assertEquals(0, notificationCount.get(), "Should not notify on same value");
     }
+
 }

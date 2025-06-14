@@ -127,7 +127,7 @@ public class TodoAppExample {
         });
 
         // Effect to show loading state
-        isLoading.subscribe(loading -> {
+        isLoading.watch(loading -> {
             if (loading) {
                 System.out.println("⏳ Loading...");
             }
@@ -144,7 +144,7 @@ public class TodoAppExample {
                     });
         });
 
-        saveToServerResource.subscribe(state -> {
+        saveToServerResource.watch(state -> {
             if (state.isLoading()) {
                 System.out.println("⏳ Saving to server in progress...");
             } else if (state.isSuccess()) {
