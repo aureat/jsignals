@@ -1,6 +1,6 @@
 package jsignals;
 
-import jsignals.async.Resource;
+import jsignals.async.ResourceRef;
 import jsignals.core.*;
 import jsignals.runtime.EffectRunner;
 import jsignals.runtime.JSignalsVThreadPool;
@@ -62,17 +62,17 @@ public final class JSignals {
     /**
      * Creates a resource for async data fetching.
      */
-    public static <T> Resource<T> resource(
+    public static <T> ResourceRef<T> resource(
             Supplier<CompletableFuture<T>> fetcher) {
-        return new Resource<>(fetcher, true);
+        return new ResourceRef<>(fetcher, true);
     }
 
     /**
      * Creates a resource that doesn't auto-fetch.
      */
-    public static <T> Resource<T> resource(
+    public static <T> ResourceRef<T> resource(
             Supplier<CompletableFuture<T>> fetcher, boolean autoFetch) {
-        return new Resource<>(fetcher, autoFetch);
+        return new ResourceRef<>(fetcher, autoFetch);
     }
 
     /**

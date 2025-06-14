@@ -1,6 +1,6 @@
 package jsignals;
 
-import jsignals.async.Resource;
+import jsignals.async.ResourceRef;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
@@ -33,7 +33,7 @@ class ResourcesTest {
 
     @Test
     void testFetchError() {
-        Resource<String> failedResource = resource(() -> CompletableFuture.failedFuture(new RuntimeException("Fetch failed")), false);
+        ResourceRef<String> failedResource = resource(() -> CompletableFuture.failedFuture(new RuntimeException("Fetch failed")), false);
 
         CompletableFuture<String> fetchResult = failedResource.fetch();
         System.out.println("Fetch result: " + fetchResult);
@@ -45,7 +45,7 @@ class ResourcesTest {
     @Test
     void testAutoFetch() {
         AtomicBoolean fetchCalled = new AtomicBoolean(false);
-        Resource<String> resource = resource(() -> {
+        ResourceRef<String> resource = resource(() -> {
             fetchCalled.set(true);
             return CompletableFuture.completedFuture("Auto Fetch Data");
         }, true);
@@ -58,7 +58,7 @@ class ResourcesTest {
     @Test
     void testCancelPreviousFetch() {
         CompletableFuture<String> longRunningFetch = new CompletableFuture<>();
-        Resource<String> resource = resource(() -> longRunningFetch, false);
+        ResourceRef<String> resource = resource(() -> longRunningFetch, false);
 
         CompletableFuture<String> firstFetch = resource.fetch();
         assertFalse(firstFetch.isDone(), "First fetch should not be done immediately");
@@ -72,7 +72,7 @@ class ResourcesTest {
 
     @Test
     void testCancelPreviousFetchRefetch() {
-        Resource<String> resource = resource(() -> new CompletableFuture<String>(), false);
+        ResourceRef<String> resource = resource(() -> new CompletableFuture<String>(), false);
 
         CompletableFuture<String> firstFetch = resource.fetch();
         assertFalse(firstFetch.isDone(), "First fetch should not be done immediately");
@@ -87,7 +87,7 @@ class ResourcesTest {
 
     @Test
     void testRefetch() throws ExecutionException, InterruptedException {
-        Resource<String> resource = resource(() -> CompletableFuture.completedFuture("Initial Data"), false);
+        ResourceRef<String> resource = resource(() -> CompletableFuture.completedFuture("Initial Data"), false);
 
         // Initial fetch
         CompletableFuture<String> initialFetch = resource.fetch();

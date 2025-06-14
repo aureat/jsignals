@@ -1,27 +1,30 @@
-package jsignals.examples;
+package jsignals.tests;
 
-import jsignals.JSignals;
+import jsignals.async.ResourceRef;
 import jsignals.core.ComputedRef;
 import jsignals.core.Ref;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+import static jsignals.JSignals.*;
 
 /**
  * Simple test to verify computed values update correctly.
  */
 public class SimpleTodoTest {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         System.out.println("=== Simple Todo Reactivity Test ===\n");
 
         // Create reactive state
-        Ref<List<String>> todos = JSignals.ref(Arrays.asList("Task 1", "Task 2"));
-        Ref<String> filter = JSignals.ref("");
+        Ref<List<String>> todos = ref(Arrays.asList("Task 1", "Task 2"));
+        Ref<String> filter = ref("");
 
         // Create computed filtered list
-        ComputedRef<List<String>> filtered = JSignals.computed(() -> {
+        ComputedRef<List<String>> filtered = computed(() -> {
             System.out.println("[Computing filtered list...]");
             List<String> allTodos = todos.get();
             String filterText = filter.get();
@@ -35,11 +38,27 @@ public class SimpleTodoTest {
                     .toList();
         });
 
+        ResourceRef<List<String>> expensiveResource = resource(() -> {
+            System.out.println("[Fetching expensive resource...]");
+            var list = todos.get(); // Return current todos
+
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return list;
+            });
+        });
+
         // Watch the filtered list
-        JSignals.effect(() -> {
+        effect(() -> {
             List<String> items = filtered.get();
             System.out.println("\nFiltered todos (" + items.size() + "):");
-            items.forEach(item -> System.out.println("  - " + item));
+            for (String item : items) {
+                System.out.println(" - " + item);
+            }
         });
 
         // Test reactivity
@@ -62,6 +81,8 @@ public class SimpleTodoTest {
             newList.add("Another task");
             return newList;
         });
+
+        Thread.sleep(2000);
 
         System.out.println("\n=== Test Complete ===");
     }

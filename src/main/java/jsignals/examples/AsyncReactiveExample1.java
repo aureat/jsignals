@@ -1,7 +1,7 @@
 package jsignals.examples;
 
 import jsignals.JSignals;
-import jsignals.async.Resource;
+import jsignals.async.ResourceRef;
 import jsignals.core.ComputedRef;
 import jsignals.core.Disposable;
 import jsignals.core.Ref;
@@ -22,16 +22,16 @@ public class AsyncReactiveExample1 {
     public static void main(String[] args) throws Exception {
         System.out.println("=== Async Reactive JSignals Example ===\n");
 
-        // 1. Basic Resource usage
-        System.out.println("1. Resource Loading:");
-        Resource<String> userData = JSignals.resource(() ->
+        // 1. Basic ResourceRef usage
+        System.out.println("1. ResourceRef Loading:");
+        ResourceRef<String> userData = JSignals.resource(() ->
                 CompletableFuture.supplyAsync(() -> {
                     sleep(1000); // Simulate API delay
                     return "User: John Doe";
                 })
         );
 
-        System.out.println("Resource state: " + userData.getData());
+        System.out.println("ResourceRef state: " + userData.getData());
         System.out.println("Is loading: " + userData.isLoading());
 
         // Wait for resource to load
@@ -96,13 +96,13 @@ public class AsyncReactiveExample1 {
         Ref<Integer> selectedUserId = JSignals.ref(1);
 
         // User data resource
-        Resource<User> user = JSignals.resource(() -> {
+        ResourceRef<User> user = JSignals.resource(() -> {
             int id = selectedUserId.get();
             return fetchUser(id);
         });
 
         // Posts resource (depends on user)
-        Resource<List<Post>> posts = JSignals.resource(() -> {
+        ResourceRef<List<Post>> posts = JSignals.resource(() -> {
             int id = selectedUserId.get();
             return fetchUserPosts(id);
         });
@@ -146,7 +146,7 @@ public class AsyncReactiveExample1 {
 
         // 5. Error Handling and Retry
         System.out.println("\n5. Error Handling:");
-        Resource<String> flakeyResource = JSignals.resource(() ->
+        ResourceRef<String> flakeyResource = JSignals.resource(() ->
                 CompletableFuture.supplyAsync(() -> {
                     if (random.nextBoolean()) {
                         throw new RuntimeException("Random failure!");

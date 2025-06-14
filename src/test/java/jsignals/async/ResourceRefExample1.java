@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ResourceExample1 {
+class ResourceRefExample1 {
 
     private DependencyTracker tracker;
 
@@ -23,7 +23,7 @@ class ResourceExample1 {
     @Test
     void testFetchSuccess() throws ExecutionException, InterruptedException {
         Supplier<CompletableFuture<String>> fetcher = () -> CompletableFuture.completedFuture("Test Data");
-        Resource<String> resource = new Resource<>(fetcher);
+        ResourceRef<String> resource = new ResourceRef<>(fetcher);
 
         CompletableFuture<String> fetchResult = resource.fetch();
         assertEquals("Test Data", fetchResult.get());
@@ -34,7 +34,7 @@ class ResourceExample1 {
     @Test
     void testFetchError() {
         Supplier<CompletableFuture<String>> fetcher = () -> CompletableFuture.failedFuture(new RuntimeException("Fetch failed"));
-        Resource<String> resource = new Resource<>(fetcher);
+        ResourceRef<String> resource = new ResourceRef<>(fetcher);
 
         CompletableFuture<String> fetchResult = resource.fetch();
         assertThrows(ExecutionException.class, fetchResult::get);
@@ -50,7 +50,7 @@ class ResourceExample1 {
             return CompletableFuture.completedFuture("Auto Fetch Data");
         };
 
-        Resource<String> resource = new Resource<>(fetcher, true);
+        ResourceRef<String> resource = new ResourceRef<>(fetcher, true);
         assertTrue(fetchCalled.get());
         assertTrue(resource.isSuccess());
         assertEquals("Auto Fetch Data", resource.getData());
@@ -59,7 +59,7 @@ class ResourceExample1 {
     @Test
     void testDependencyTracking() {
         Supplier<CompletableFuture<String>> fetcher = () -> CompletableFuture.completedFuture("Dependency Data");
-        Resource<String> resource = new Resource<>(fetcher);
+        ResourceRef<String> resource = new ResourceRef<>(fetcher);
 
         tracker.trackAccess(resource);
         resource.onDependencyChanged();
@@ -72,7 +72,7 @@ class ResourceExample1 {
         CompletableFuture<String> longRunningFetch = new CompletableFuture<>();
         Supplier<CompletableFuture<String>> fetcher = () -> longRunningFetch;
 
-        Resource<String> resource = new Resource<>(fetcher);
+        ResourceRef<String> resource = new ResourceRef<>(fetcher);
         resource.fetch(); // Start the first fetch
 
         CompletableFuture<String> newFetch = resource.fetch(); // Start a new fetch

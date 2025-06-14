@@ -40,19 +40,6 @@ public class ResourceExample1 {
     }
 
     public static void main(String[] args) throws Exception {
-//        var computed = new AsyncComputedRef<>(() -> {
-//            System.out.println("  [Async Computed] Running computation...");
-//            return CompletableFuture.supplyAsync(() -> {
-//                try {
-//                    Thread.sleep(1000); // Simulate async work
-//                } catch (InterruptedException e) {
-//                    Thread.currentThread().interrupt();
-//                }
-//                return "Computed Value";
-//            });
-//        });
-//        System.out.println("Initial value: " + computed.get().join());
-
         var userAPI = new UserAPI();
 
         System.out.println("  [Code] Creating ref");

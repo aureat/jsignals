@@ -1,13 +1,12 @@
 //package jsignals.examples;
 //
-//import io.signals.Signals;
-//import io.signals.core.*;
 //import java.util.concurrent.CompletableFuture;
 //
-///**
+/// **
 // * Fixed async example with proper dependency tracking.
 // */
 //public class AsyncReactiveExample2 {
+//
 //    public static void main(String[] args) throws Exception {
 //        System.out.println("=== Fixed Async Reactive JSignals Example ===\n");
 //
@@ -48,11 +47,11 @@
 //
 //        // First access
 //        userProfile.get().thenAccept(profile ->
-//            System.out.println("  Initial profile: " + profile)
+//                System.out.println("  Initial profile: " + profile)
 //        );
 //
 //        // Wait for completion
-//        try { Thread.sleep(600); } catch (InterruptedException e) {}
+//        try { Thread.sleep(600); } catch (InterruptedException e) { }
 //
 //        // Change user ID - should trigger refetch
 //        System.out.println("\n  Changing to user 2...");
@@ -60,7 +59,7 @@
 //
 //        // Access again - should get new profile
 //        userProfile.get().thenAccept(profile ->
-//            System.out.println("  Updated profile: " + profile)
+//                System.out.println("  Updated profile: " + profile)
 //        );
 //    }
 //
@@ -108,12 +107,12 @@
 //                System.out.println("  [Dashboard] Loading...");
 //            } else if (userState.isSuccess() && postsState.isSuccess()) {
 //                System.out.println("  [Dashboard] User: " + userState.getData() +
-//                                 ", Posts: " + postsState.getData());
+//                        ", Posts: " + postsState.getData());
 //            }
 //        });
 //
 //        // Wait for initial load
-//        try { Thread.sleep(500); } catch (InterruptedException e) {}
+//        try { Thread.sleep(500); } catch (InterruptedException e) { }
 //
 //        // Change user - both resources should refetch
 //        System.out.println("\n  Changing to user 3...");
@@ -149,9 +148,10 @@
 //        searchQuery.set("Jav");
 //        searchQuery.set("Java");
 //
-//        try { Thread.sleep(100); } catch (InterruptedException e) {}
+//        try { Thread.sleep(100); } catch (InterruptedException e) { }
 //
 //        // Another change after delay
 //        searchQuery.set("JavaScript");
 //    }
+//
 //}

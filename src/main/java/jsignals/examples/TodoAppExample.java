@@ -1,6 +1,6 @@
 package jsignals.examples;
 
-import jsignals.async.Resource;
+import jsignals.async.ResourceRef;
 import jsignals.core.ComputedRef;
 import jsignals.core.Ref;
 
@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
 import static jsignals.JSignals.*;
 
 /**
- * Real-world example: A reactive todo list application with search and filtering.
+ * Real-world example: A reactive to-do list application with search and filtering.
  */
 public class TodoAppExample {
 
@@ -54,12 +54,12 @@ public class TodoAppExample {
     });
 
     // Resources for server sync
-    private static final Resource<List<Todo>> serverTodos = resource(
+    private static final ResourceRef<List<Todo>> serverTodos = resource(
             TodoAppExample::fetchTodosFromServer,
-            false // Don't auto-fetch
+            false
     );
 
-    private static Resource<Void> saveToServerResource;
+    private static ResourceRef<Void> saveToServerResource;
 
     public static void main(String[] args) throws Exception {
         System.out.println("=== Todo App Example ===\n");
@@ -137,7 +137,7 @@ public class TodoAppExample {
         saveToServerResource = resource(() -> {
             todos.get();
 
-            // Debounce saves
+            // Debounce saves, on virtual threads
             return delay(500, TimeUnit.MILLISECONDS)
                     .thenRun(() -> {
                         System.out.println("💾 Auto-saving todos...");
