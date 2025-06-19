@@ -5,6 +5,8 @@ import jsignals.core.*;
 import jsignals.runtime.EffectRunner;
 import jsignals.runtime.JSignalsExecutor;
 import jsignals.runtime.JSignalsRuntime;
+import jsignals.util.JSignalsLogger;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -25,6 +27,8 @@ public final class JSignals {
 
     private static final Object runtimeLock = new Object();
 
+    private static final Logger log = JSignalsLogger.getLogger("jsignals");
+
     private JSignals() { }
 
     /**
@@ -36,11 +40,12 @@ public final class JSignals {
     public static JSignalsRuntime initRuntime() {
         synchronized (runtimeLock) {
             if (runtime != null) {
+                log.error("Runtime is already initialized.");
                 throw new IllegalStateException("JSignalsRuntime is already initialized.");
             }
 
             runtime = new JSignalsRuntime();
-            System.out.println("[JSignals] Runtime initialized.");
+            log.info("Runtime initialized.");
             return runtime;
         }
     }
@@ -63,7 +68,7 @@ public final class JSignals {
     private static JSignalsRuntime getRuntime() {
         JSignalsRuntime r = runtime; // Volatile read
         if (r == null) {
-            throw new IllegalStateException("JSignalsRuntime has not been initialized. Please call JSignals.initRuntime() first.");
+            throw new IllegalStateException("Runtime has not been initialized. Please call JSignals.initRuntime() first.");
         }
 
         return r;

@@ -1,5 +1,6 @@
 package jsignals.tests;
 
+import jsignals.core.Disposable;
 import jsignals.core.ReadableRef;
 import jsignals.runtime.DependencyTracker;
 import jsignals.runtime.DependencyTracker.Dependent;
@@ -7,12 +8,14 @@ import jsignals.runtime.JSignalsExecutor;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * Async computed value that properly tracks dependencies and re-executes when they change.
  */
-public class AsyncComputedRef<T> implements ReadableRef<CompletableFuture<T>>, Dependent {
+public abstract class AsyncComputedRef<T> implements ReadableRef<CompletableFuture<T>>, Dependent {
 
     private final Supplier<CompletableFuture<T>> computation;
 
@@ -48,6 +51,16 @@ public class AsyncComputedRef<T> implements ReadableRef<CompletableFuture<T>>, D
     @Override
     public CompletableFuture<T> getValue() {
         return currentComputation;
+    }
+
+    @Override
+    public Disposable watch(Consumer<CompletableFuture<T>> listener) {
+        return null;
+    }
+
+    @Override
+    public Disposable watch(BiConsumer<CompletableFuture<T>, CompletableFuture<T>> listener) {
+        return null;
     }
 
     @Override
@@ -108,6 +121,11 @@ public class AsyncComputedRef<T> implements ReadableRef<CompletableFuture<T>>, D
         } finally {
             isComputing = false;
         }
+    }
+
+    @Override
+    public String getName() {
+        return "";
     }
 
 }

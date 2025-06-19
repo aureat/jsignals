@@ -1,6 +1,4 @@
-package jsignals.core.support;
-
-import jsignals.core.Disposable;
+package jsignals.core;
 
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -13,11 +11,11 @@ import java.util.function.Consumer;
  *
  * @param <LISTENER_TYPE> The functional interface type of the listeners (e.g., Runnable, Consumer<T>).
  */
-public class SubscriptionManager<LISTENER_TYPE> {
+public final class SubscriptionNotifier<LISTENER_TYPE> {
 
     private final CopyOnWriteArrayList<ManagedSubscription<LISTENER_TYPE>> subscriptions = new CopyOnWriteArrayList<>();
 
-    public SubscriptionManager() { }
+    public SubscriptionNotifier() { }
 
     /**
      * Adds a listener and returns a Disposable to manage its lifecycle.
@@ -37,34 +35,45 @@ public class SubscriptionManager<LISTENER_TYPE> {
      *
      * @param subscription The subscription to remove.
      */
-    void remove(ManagedSubscription<LISTENER_TYPE> subscription) {
+    private void remove(ManagedSubscription<LISTENER_TYPE> subscription) {
         subscriptions.remove(subscription);
+    }
+
+    public boolean isEmpty() {
+        return subscriptions.isEmpty();
+    }
+
+    public int size() {
+        return subscriptions.size();
+    }
+
+    public boolean hasSubscriptions() {
+        return !subscriptions.isEmpty();
     }
 
     /**
      * Notifies all active subscribers.
      *
-     * @param invokerAction A Consumer that defines how to invoke each listener.
-     *                      For example, for Consumer<String> listeners, this could be `listener -> listener.accept("hello")`.
-     *                      For Runnable listeners, this could be `listener -> listener.run()`.
+     * @param invokerAction A {@link Consumer} that defines how to invoke each listener. This design
+     *                      provides flexibility, allowing the caller to pass arguments to the
+     *                      listeners. For example, for a {@code Consumer<String>} listener, the
+     *                      invoker action would be {@code listener -> listener.accept("someValue")}.
      */
-    public void notifyAll(Consumer<LISTENER_TYPE> invokerAction) {
-        Objects.requireNonNull(invokerAction, "Invoker action cannot be null");
+    public void notify(Consumer<LISTENER_TYPE> invokerAction) {
+        Objects.requireNonNull(invokerAction, "Invoker action cannot be null.");
 
-        // Clean up any subscriptions that were disposed but perhaps not yet removed
-        // (e.g., if dispose() was called directly on a ManagedSubscription instance that
-        // somehow didn't complete its removal from the manager immediately).
-        // CopyOnWriteArrayList's iterator is safe, but removeIf can be costly if called excessively.
-        // For many use cases, cleaning here is fine.
-        subscriptions.removeIf(ManagedSubscription::isDisposed);
-
+        // The iterator of CopyOnWriteArrayList is a snapshot, so it's inherently safe from
+        // concurrent modifications. No need to manually clean up disposed items here; the
+        // `dispose` method handles removal.
         for (ManagedSubscription<LISTENER_TYPE> subscription : subscriptions) {
             try {
-                subscription.invokeListener(invokerAction);
+                subscription.invoke(invokerAction);
             } catch (Exception e) {
-                // Consider a configurable error handler strategy
-                System.err.println("Error during subscriber notification: " + e.getMessage());
-                e.printStackTrace(); // For more detailed debugging
+                // It's crucial to catch exceptions from individual listeners to prevent
+                // one faulty listener from stopping the entire notification chain.
+                // Consider replacing with a configurable error handler.
+                System.err.println("JSignal Notification Error: A subscriber threw an exception.");
+                e.printStackTrace(System.err);
             }
         }
     }
@@ -76,11 +85,11 @@ public class SubscriptionManager<LISTENER_TYPE> {
 
         private final L actualListener;
 
-        private final SubscriptionManager<L> manager; // To call remove upon disposal
+        private final SubscriptionNotifier<L> manager; // To call remove upon disposal
 
         private volatile boolean disposed = false;
 
-        ManagedSubscription(L actualListener, SubscriptionManager<L> manager) {
+        ManagedSubscription(L actualListener, SubscriptionNotifier<L> manager) {
             this.actualListener = actualListener;
             this.manager = manager;
         }
@@ -90,7 +99,7 @@ public class SubscriptionManager<LISTENER_TYPE> {
          *
          * @param invokerAction The action that knows how to call the listener.
          */
-        void invokeListener(Consumer<L> invokerAction) {
+        void invoke(Consumer<L> invokerAction) {
             if (!disposed) {
                 invokerAction.accept(actualListener);
             }
@@ -102,6 +111,8 @@ public class SubscriptionManager<LISTENER_TYPE> {
 
         @Override
         public void dispose() {
+            // The volatile 'disposed' flag ensures that even if multiple threads call dispose(),
+            // the removal logic runs only once.
             if (!disposed) {
                 disposed = true;
                 // Remove from the manager's list.

@@ -1,5 +1,6 @@
 package jsignals.tests;
 
+import jsignals.core.Disposable;
 import jsignals.core.ReadableRef;
 import jsignals.runtime.DependencyTracker;
 import jsignals.runtime.DependencyTracker.Dependent;
@@ -7,13 +8,15 @@ import jsignals.runtime.JSignalsExecutor;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * An async computed value that runs on virtual threads.
  * Automatically cancels and re-runs when dependencies change.
  */
-public class ComputedAsync<T> implements ReadableRef<T>, Dependent {
+public abstract class ComputedAsync<T> implements ReadableRef<T>, Dependent {
 
     private final Supplier<CompletableFuture<T>> asyncComputation;
 
@@ -26,6 +29,11 @@ public class ComputedAsync<T> implements ReadableRef<T>, Dependent {
     private final AtomicReference<CompletableFuture<T>> currentComputation = new AtomicReference<>();
 
     private final AtomicReference<State> state = new AtomicReference<>(State.IDLE);
+
+    @Override
+    public String getName() {
+        return "";
+    }
 
     private enum State {
         IDLE, COMPUTING, READY, ERROR
@@ -59,6 +67,16 @@ public class ComputedAsync<T> implements ReadableRef<T>, Dependent {
     @Override
     public T getValue() {
         return cachedValue.get();
+    }
+
+    @Override
+    public Disposable watch(Consumer<T> listener) {
+        return null;
+    }
+
+    @Override
+    public Disposable watch(BiConsumer<T, T> listener) {
+        return null;
     }
 
     @Override

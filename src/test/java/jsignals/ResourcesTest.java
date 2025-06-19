@@ -37,7 +37,7 @@ class ResourcesTest {
 
         CompletableFuture<String> fetchResult = failedResource.fetch();
         System.out.println("Fetch result: " + fetchResult);
-        assertTrue(failedResource.hasError());
+        assertTrue(failedResource.isError());
         assertNull(failedResource.getData());
         assertEquals("Fetch failed", failedResource.getError().getMessage());
     }

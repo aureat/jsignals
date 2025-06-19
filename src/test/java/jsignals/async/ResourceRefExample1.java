@@ -38,7 +38,7 @@ class ResourceRefExample1 {
 
         CompletableFuture<String> fetchResult = resource.fetch();
         assertThrows(ExecutionException.class, fetchResult::get);
-        assertTrue(resource.hasError());
+        assertTrue(resource.isError());
         assertEquals("Fetch failed", resource.getError().getMessage());
     }
 

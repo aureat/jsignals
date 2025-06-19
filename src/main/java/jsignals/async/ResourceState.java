@@ -213,16 +213,7 @@ public final class ResourceState<T> {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("ResourceState{status=");
-        sb.append(status);
-        if (data != null) {
-            sb.append(", data=").append(data);
-        }
-        if (error != null) {
-            sb.append(", error=").append(error);
-        }
-        sb.append('}');
-        return sb.toString();
+        return String.format("ResourceState{status=%s, data=%s, error=%s}", status, data, error);
     }
 
 }

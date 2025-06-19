@@ -1,13 +1,11 @@
 package jsignals.runtime;
 
 import jsignals.core.Disposable;
-import jsignals.core.ReadableRef;
 import jsignals.runtime.DependencyTracker.Dependent;
 
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 /**
  * Manages reactive effects (side effects that re-run when dependencies change).
@@ -28,19 +26,6 @@ public class EffectRunner {
         handle.run();
 
         return handle;
-    }
-
-    /**
-     * Watches a specific source and calls the callback when it changes.
-     */
-    public <T> Disposable watch(ReadableRef<T> source, Consumer<T> callback) {
-        Objects.requireNonNull(source, "Source cannot be null");
-        Objects.requireNonNull(callback, "Callback cannot be null");
-
-        var watch = new WatchHandle<>(source, callback);
-        watch.register();
-
-        return watch;
     }
 
     /**
@@ -101,39 +86,9 @@ public class EffectRunner {
             }
         }
 
-    }
-
-    private class WatchHandle<T> implements Disposable, Dependent {
-
-        private final ReadableRef<T> source;
-
-        private final Consumer<T> callback;
-
-        private final AtomicBoolean disposed = new AtomicBoolean(false);
-
-        WatchHandle(ReadableRef<T> source, Consumer<T> callback) {
-            this.source = source;
-            this.callback = callback;
-        }
-
-        void register() {
-            tracker.registerDependency(this, source);
-        }
-
         @Override
-        public void onDependencyChanged() {
-            if (!disposed.get()) {
-                // Call the callback with the current value
-                callback.accept(source.get());
-            }
-        }
-
-        @Override
-        public void dispose() {
-            if (disposed.compareAndSet(false, true)) {
-                // Clean up our registration
-                tracker.cleanupDependent(this);
-            }
+        public String getName() {
+            return "EffectHandle@" + Integer.toHexString(hashCode());
         }
 
     }

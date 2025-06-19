@@ -6,11 +6,14 @@ import jsignals.core.Ref;
 import jsignals.runtime.DependencyTracker;
 import jsignals.runtime.DependencyTracker.Dependent;
 import jsignals.runtime.JSignalsExecutor;
+import jsignals.util.JSignalsLogger;
+import org.slf4j.Logger;
 
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -42,6 +45,8 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
 
     private final AtomicReference<CompletableFuture<T>> debouncedFetchCompletion = new AtomicReference<>();
 
+    private final Logger log = JSignalsLogger.getLogger(getName());
+
     public ResourceRef(Supplier<CompletableFuture<T>> fetcher, boolean autoFetch, Executor executor, Duration debounceDelay) {
         this.fetcher = Objects.requireNonNull(fetcher, "Fetcher cannot be null");
         this.executor = Objects.requireNonNull(executor, "Executor cannot be null");
@@ -64,6 +69,7 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
 
     @Override
     public ResourceState<T> get() {
+        tracker.trackAccess(this);
         var currentState = state.get();
         return currentState.get();
     }
@@ -93,9 +99,14 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
         return state.get().watch(listener);
     }
 
+    public Disposable watch(BiConsumer<ResourceState<T>, ResourceState<T>> listener) {
+        Objects.requireNonNull(listener, "Listener cannot be null");
+        return state.get().watch(listener);
+    }
+
     @Override
     public void onDependencyChanged() {
-        System.out.println("[" + Thread.currentThread().getName() + "] [Resource] Dependency changed, refetching...");
+        log.debug("Dependency changed, refetching for {}", this);
 
         // When a dependency changes, refetch the data
         fetch();
@@ -155,9 +166,9 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
      * @return A CompletableFuture that completes with the fetched data or an error.
      */
     private CompletableFuture<T> fetchNow() {
-        state.get().set(ResourceState.loading(cachedValue.get()));
+        log.debug("Starting fetch for {}", this);
 
-        System.out.println("[" + Thread.currentThread().getName() + "] [Resource] Starting fetch...");
+        state.get().set(ResourceState.loading(cachedValue.get()));
 
         boolean shouldStartTracking = isTracking.compareAndSet(false, true);
         CompletableFuture<T> newFetch;
@@ -185,16 +196,16 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
 
         // If there was a previous fetch running, cancel it.
         if (oldFetch != null && !oldFetch.isDone()) {
-            System.out.println("[" + Thread.currentThread().getName() + "] [Resource] Cancelling previous fetch...");
+            log.debug("Cancelling previous fetch for {}", this);
             oldFetch.cancel(true);
         }
 
         // Handle the result
         return newFetch
                 .thenApplyAsync(data -> {
-                    System.out.println("[" + Thread.currentThread().getName() + "] [Resource] Fetch succeeded");
                     cachedValue.set(data);
                     state.get().set(ResourceState.success(cachedValue.get()));
+                    log.debug("Fetch succeeded for {}", this);
                     return data;
                 }, executor)
                 .exceptionally(error -> {
@@ -202,12 +213,12 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
 
                     // Handle cancellation
                     if (cause instanceof CancellationException) {
-                        System.out.println("[" + Thread.currentThread().getName() + "] [Resource] Fetch was cancelled");
+                        log.debug("Fetch cancelled for {}", this);
                         state.get().set(ResourceState.cancelled(cachedValue.get(), cause));
                         return null;
                     }
 
-                    System.out.println("[" + Thread.currentThread().getName() + "] [Resource] Fetch failed with error: " + cause);
+                    log.debug("Fetch failed for {} with {}", this, error.toString());
                     state.get().set(ResourceState.error(cachedValue.get(), cause));
                     return null;
                 });
@@ -220,18 +231,26 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
         var fetchToCancel = currentFetch.getAndSet(null);
 
         if (fetchToCancel != null && !fetchToCancel.isDone()) {
-            System.out.println("[" + Thread.currentThread().getName() + "] [Resource] Cancelling current fetch...");
+            log.debug("Cancelling current fetch for {}", this);
             fetchToCancel.cancel(true);
         }
 
         state.get().set(ResourceState.idle(cachedValue.get()));
     }
 
+    public boolean isIdle() {
+        return state.get().getValue().isIdle();
+    }
+
     public boolean isLoading() {
         return state.get().getValue().isLoading();
     }
 
-    public boolean hasError() {
+    public boolean isSuccess() {
+        return state.get().getValue().isSuccess();
+    }
+
+    public boolean isError() {
         return state.get().getValue().isError();
     }
 
@@ -243,8 +262,19 @@ public class ResourceRef<T> implements ReadableRef<ResourceState<T>>, Dependent 
         return state.get().getValue().getError();
     }
 
-    public boolean isSuccess() {
-        return state.get().getValue().isSuccess();
+    public String getErrorMessage() {
+        Throwable error = state.get().getValue().getError();
+        return error != null ? error.getMessage() : null;
+    }
+
+    public String getName() {
+        return String.format("ResourceRef@%s(%s)", Integer.toHexString(hashCode()), state.get().getName());
+    }
+
+    @Override
+    public String toString() {
+        var state = this.state.get().getValue();
+        return String.format("ResourceRef{state=%s, cachedValue=%s}", state, cachedValue.get());
     }
 
 }

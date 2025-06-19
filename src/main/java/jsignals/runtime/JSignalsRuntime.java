@@ -1,5 +1,8 @@
 package jsignals.runtime;
 
+import jsignals.util.JSignalsLogger;
+import org.slf4j.Logger;
+
 /**
  * Manages the lifecycle of shared resources for the JSignals library,
  * primarily the executor service.
@@ -9,6 +12,8 @@ package jsignals.runtime;
 public final class JSignalsRuntime implements AutoCloseable {
 
     private final JSignalsExecutor executor;
+
+    private static final Logger log = JSignalsLogger.getLogger("jsignals");
 
     /**
      * Creates a new runtime, initializing all necessary services.
@@ -32,8 +37,9 @@ public final class JSignalsRuntime implements AutoCloseable {
      */
     @Override
     public void close() {
+        log.debug("Closing runtime...");
         executor.close();
-        System.out.println("[JSignals] Runtime closed.");
+        log.info("Runtime closed.");
     }
 
 }

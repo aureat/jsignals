@@ -1,10 +1,13 @@
 package jsignals.core;
 
-import jsignals.runtime.DependencyTracker;
+import jsignals.runtime.DependencyTracker.Dependent;
+import jsignals.util.JSignalsLogger;
+import jsignals.util.WeakLRUCache;
+import org.slf4j.Logger;
 
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -12,25 +15,21 @@ import java.util.function.Function;
  * A reactive reference holding a value of type T.
  * Thread-safe implementation supporting concurrent reads and writes.
  */
-public class Ref<T> implements WritableRef<T> {
+public class Ref<T> implements WritableRef<T>, Dependent {
 
     private final AtomicReference<T> value;
+    private final DependentNotifier dependentNotifier;
+    private final SubscriptionNotifier<BiConsumer<T, T>> subscriptions;
 
-    private final CopyOnWriteArrayList<RefSubscription<T>> subscriptions;
-
-    private final Object notificationLock = new Object();
-
-    private final DependencyTracker tracker = DependencyTracker.getInstance();
-
-    // TODO: Package-private for now, will integrate with DependencyTracker later
-    volatile boolean isNotifying = false;
+    private final Logger log = JSignalsLogger.getLogger(getName());
 
     /**
      * Creates a new Ref with an initial value.
      */
     public Ref(T initialValue) {
         this.value = new AtomicReference<>(initialValue);
-        this.subscriptions = new CopyOnWriteArrayList<>();
+        this.dependentNotifier = new DependentNotifier(this);
+        this.subscriptions = new SubscriptionNotifier<>();
     }
 
     /**
@@ -42,14 +41,12 @@ public class Ref<T> implements WritableRef<T> {
 
     @Override
     public T get() {
-        // Track dependency access here
-        tracker.trackAccess(this);
+        dependentNotifier.trackAccess();
         return value.get();
     }
 
     @Override
     public T getValue() {
-        // Non-tracking access
         return value.get();
     }
 
@@ -57,9 +54,9 @@ public class Ref<T> implements WritableRef<T> {
     public void set(T newValue) {
         T oldValue = value.getAndSet(newValue);
 
-        // Only notify if value actually changed
+        // Notify dependents only if the value has changed
         if (!Objects.equals(oldValue, newValue)) {
-            notifySubscribers(oldValue, newValue);
+            notifyDependents(oldValue, newValue);
         }
     }
 
@@ -70,16 +67,38 @@ public class Ref<T> implements WritableRef<T> {
         T oldValue;
         T newValue;
 
-        // Atomic update
         do {
             oldValue = value.get();
             newValue = updater.apply(oldValue);
         } while (!value.compareAndSet(oldValue, newValue));
 
-        // Notify if changed
+        // Notify dependents only if the value has changed
         if (!Objects.equals(oldValue, newValue)) {
-            notifySubscribers(oldValue, newValue);
+            notifyDependents(oldValue, newValue);
         }
+    }
+
+    @Override
+    public void onDependencyChanged() {
+        // This method is called by the DependencyTracker when a dependency changes.
+        // In this case, we do not need to do anything here because Ref does not have dependencies.
+        // All changes are handled through set() or update() methods.
+        log.trace("Dependency changed, but Ref does not track dependencies directly.");
+    }
+
+    /**
+     * Notifies all dependents that the value has changed.
+     * This method is called internally when the value is set or updated.
+     * It ensures that all subscribers are notified of the change.
+     *
+     * @param oldValue The previous value
+     * @param newValue The new value
+     */
+    void notifyDependents(final T oldValue, final T newValue) {
+        log.debug("Value changed from {} to {}, notifying dependents...", oldValue, newValue);
+        dependentNotifier.notifyDependents(() ->
+                subscriptions.notify(listener -> listener.accept(oldValue, newValue))
+        );
     }
 
     /**
@@ -90,11 +109,8 @@ public class Ref<T> implements WritableRef<T> {
      */
     public Disposable watch(Consumer<T> listener) {
         Objects.requireNonNull(listener, "Listener cannot be null");
-
-        RefSubscription<T> subscription = new RefSubscription<>(listener, this);
-        subscriptions.add(subscription);
-
-        return subscription;
+        BiConsumer<T, T> listenerAdapter = (_, newValue) -> listener.accept(newValue);
+        return subscriptions.add(listenerAdapter);
     }
 
     /**
@@ -102,92 +118,62 @@ public class Ref<T> implements WritableRef<T> {
      */
     public Disposable watch(BiConsumer<T, T> listener) {
         Objects.requireNonNull(listener, "Listener cannot be null");
-
-        RefSubscription<T> subscription = new RefSubscription<>(
-                newValue -> listener.accept(getValue(), newValue),
-                this
-        );
-        subscriptions.add(subscription);
-
-        return subscription;
+        return subscriptions.add(listener);
     }
 
-    private void notifySubscribers(T oldValue, T newValue) {
-        synchronized (notificationLock) {
-            if (isNotifying) {
-                // Prevent recursive notifications
-                return;
-            }
-            isNotifying = true;
-        }
-
-        try {
-            // Clean up disposed subscriptions first
-            subscriptions.removeIf(RefSubscription::isDisposed);
-
-            // Notify all active subscribers
-            for (RefSubscription<T> subscription : subscriptions) {
-                try {
-                    subscription.notifySubscription(newValue);
-                } catch (Exception e) {
-                    // Log error but continue notifying others
-                    System.err.println("Error in subscription: " + e.getMessage());
-                }
-            }
-
-            // Notify the dependency tracker
-            tracker.notifyDependents(this);
-
-        } finally {
-            synchronized (notificationLock) {
-                isNotifying = false;
-            }
-        }
+    public <U> U with(Function<T, U> mapper) {
+        Objects.requireNonNull(mapper, "Mapper function cannot be null");
+        return mapper.apply(get());
     }
 
-    void removeSubscription(RefSubscription<T> subscription) {
-        subscriptions.remove(subscription);
+    public <U> U withValue(Function<T, U> mapper) {
+        Objects.requireNonNull(mapper, "Mapper function cannot be null");
+        return mapper.apply(getValue());
+    }
+
+    public <U> ComputedRef<U> map(Function<T, U> mapper) {
+        Objects.requireNonNull(mapper, "Mapper function cannot be null");
+        return new ComputedRef<>(() -> mapper.apply(get()));
+    }
+
+    public <U> ComputedRef<U> flatMap(Function<? super T, ? extends ReadableRef<U>> mapper) {
+        Objects.requireNonNull(mapper, "Mapper function cannot be null");
+
+        final WeakLRUCache<T, ReadableRef<U>> cache = new WeakLRUCache<>();
+
+        // Create a ComputedRef that performs the "flattening".
+        return new ComputedRef<>(() -> {
+            // 1. Get the current value of the outer Ref. This establishes a dependency.
+            //    When this outer Ref changes, this whole computation will re-run.
+            T outerValue = this.get();
+
+            // 2. Apply the mapper to get the currently active inner Ref.
+            ReadableRef<U> innerRef = cache.computeIfAbsent(outerValue, mapper);
+
+            // 3. Get the value of that inner Ref. This establishes a second, dynamic dependency.
+            //    When the *inner* Ref changes, this computation will also re-run.
+            return innerRef.get();
+        });
+    }
+
+    public Ref<T> copy() {
+        return new Ref<>(value.get());
+    }
+
+    public <U> Ref<U> copy(Function<T, U> mapper) {
+        Objects.requireNonNull(mapper, "Mapper function cannot be null");
+        return new Ref<>(mapper.apply(value.get()));
+    }
+
+    public String getName() {
+        return "Ref@" + Integer.toHexString(getId());
     }
 
     @Override
     public String toString() {
-        return "Ref(" + getValue() + ")";
-    }
-
-    /**
-     * Internal subscription class
-     */
-    private static class RefSubscription<T> implements Disposable {
-
-        private final Consumer<T> listener;
-
-        private final Ref<T> ref;
-
-        private volatile boolean disposed = false;
-
-        RefSubscription(Consumer<T> listener, Ref<T> ref) {
-            this.listener = listener;
-            this.ref = ref;
-        }
-
-        void notifySubscription(T value) {
-            if (!disposed) {
-                listener.accept(value);
-            }
-        }
-
-        boolean isDisposed() {
-            return disposed;
-        }
-
-        @Override
-        public void dispose() {
-            if (!disposed) {
-                disposed = true;
-                ref.removeSubscription(this);
-            }
-        }
-
+        return getName() + "{" +
+                "value=" + value.get() +
+                '}';
     }
 
 }

@@ -80,9 +80,13 @@ public class TriggerRef implements TrackableRef {
 
     @Override
     public String toString() {
-        return "TriggerRef()";
+        return "TriggerRef";
     }
 
+    @Override
+    public String getName() {
+        return "TriggerRef@" + Integer.toHexString(hashCode());
+    }
 
     private static class TriggerSubscription implements Disposable {
 

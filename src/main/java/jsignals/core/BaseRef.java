@@ -1,3 +1,7 @@
 package jsignals.core;
 
-public interface BaseRef { }
+public interface BaseRef {
+
+    String getName();
+
+}

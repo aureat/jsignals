@@ -1,11 +1,14 @@
 package jsignals.examples;
 
+import jsignals.JSignals;
+import jsignals.core.Disposable;
 import jsignals.core.ReadableRef;
 import jsignals.core.TrackableRef;
 import jsignals.core.WritableRef;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,9 +22,13 @@ public class SwingListModelTodoApp {
 
     private static TrackableRef updateTrigger;
 
-    public static void main(String[] args) {
+    private static Disposable todoListUIEffect;
 
-        // Todo list state
+    private static Disposable refreshedLabelUIEffect;
+
+    public static void main(String[] args) {
+        var runtime = JSignals.initRuntime();
+
         todoList = ref(new ArrayList<>(List.of(
                 "Buy groceries",
                 "Walk the dog",
@@ -42,6 +49,16 @@ public class SwingListModelTodoApp {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(500, 400);
         frame.setLayout(new BorderLayout());
+
+        frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                todoListUIEffect.dispose();
+                refreshedLabelUIEffect.dispose();
+                JSignals.shutdownRuntime();
+                super.windowClosing(e);
+            }
+        });
 
         // Todo list display
         DefaultListModel<String> listModel = new DefaultListModel<>();
@@ -67,14 +84,14 @@ public class SwingListModelTodoApp {
         frame.add(inputPanel, BorderLayout.SOUTH);
 
         // Reactivity: Update the JList whenever the todoList changes
-        effect(() -> {
+        todoListUIEffect = effect(() -> {
             listModel.clear();
             todoList.get().forEach(listModel::addElement);
             updateTrigger.trigger();
         });
 
         // Reactivity: Update the refreshed label whenever the time changes
-        effect(() -> refreshedLabel.setText(refreshedAt.get()));
+        refreshedLabelUIEffect = effect(() -> refreshedLabel.setText(refreshedAt.get()));
 
         // Add button action: Add a new todo
         addButton.addActionListener(e -> {

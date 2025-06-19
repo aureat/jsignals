@@ -1,4 +1,4 @@
-package jsignals.examples;
+package jsignals.tests;
 
 import jsignals.JSignals;
 import jsignals.async.ResourceRef;
@@ -116,7 +116,7 @@ public class AsyncReactiveExample1 {
                 return new DashboardState("Loading...", null, null);
             }
 
-            if (user.hasError() || posts.hasError()) {
+            if (user.isError() || posts.isError()) {
                 return new DashboardState("Error loading data", null, null);
             }
 
@@ -160,7 +160,7 @@ public class AsyncReactiveExample1 {
         int retries = 0;
         while (retries < 3 && !flakeyResource.isSuccess()) {
             Thread.sleep(500);
-            if (flakeyResource.hasError()) {
+            if (flakeyResource.isError()) {
                 System.out.println("  Retry " + (retries + 1) + " - Error: " +
                         flakeyResource.getError().getMessage());
                 flakeyResource.fetch();

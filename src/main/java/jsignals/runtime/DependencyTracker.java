@@ -1,5 +1,8 @@
 package jsignals.runtime;
 
+import jsignals.util.JSignalsLogger;
+import org.slf4j.Logger;
+
 import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,8 +14,10 @@ public class DependencyTracker {
 
     private static final DependencyTracker INSTANCE = new DependencyTracker();
 
+    private final ThreadLocal<Deque<ComputationContext>> contextStack = ThreadLocal.withInitial(ArrayDeque::new);
+
     // Thread-local to track the current computation being executed
-    private final ThreadLocal<ComputationContext> currentContext = new ThreadLocal<>();
+//    private final ThreadLocal<ComputationContext> currentContext = new ThreadLocal<>();
 
     // Maps dependencies to their dependents
     private final ConcurrentHashMap<Object, Set<WeakReference<Dependent>>> dependentsMap =
@@ -21,6 +26,8 @@ public class DependencyTracker {
     // Maps dependents to their current dependencies (for cleanup)
     private final ConcurrentHashMap<Dependent, Set<Object>> dependentToDepsMap =
             new ConcurrentHashMap<>();
+
+    private static final Logger log = JSignalsLogger.getLogger(DependencyTracker.class);
 
     private DependencyTracker() { }
 
@@ -42,61 +49,72 @@ public class DependencyTracker {
         // Clean up old dependencies first
         cleanupDependent(dependent);
 
+        // Push a new context onto the stack
         ComputationContext context = new ComputationContext(dependent);
-        currentContext.set(context);
+        contextStack.get().push(context);
     }
 
     /**
      * Stops tracking dependencies for the current computation.
      */
     public Set<Object> stopTracking() {
-        ComputationContext context = currentContext.get();
-        currentContext.remove();
-
-        if (context != null) {
-            Set<Object> newDeps = context.getDependencies();
-            Dependent dependent = context.getDependent();
-
-            // Update the dependent's dependency set
-            dependentToDepsMap.put(dependent, newDeps);
-
-            return newDeps;
+        Deque<ComputationContext> stack = contextStack.get();
+        if (stack.isEmpty()) {
+            log.error("No computation context to stop tracking for.");
+            return Collections.emptySet();
         }
 
-        return Collections.emptySet();
+        ComputationContext context = stack.pop();
+        if (context == null) {
+            log.error("Null computation context found when stopping tracking.");
+            return Collections.emptySet();
+        }
+
+        Set<Object> newDeps = context.getDependencies();
+        Dependent dependent = context.getDependent();
+
+        // Update the dependent's dependency set
+        dependentToDepsMap.put(dependent, newDeps);
+
+        return newDeps;
     }
 
     /**
      * Records that the current computation accessed a dependency.
      */
     public void trackAccess(Object dependency) {
-        ComputationContext context = currentContext.get();
-        if (context != null) {
-            context.addDependency(dependency);
+        Deque<ComputationContext> stack = contextStack.get();
+        if (stack.isEmpty()) {
+            log.warn("No computation context found when tracking access to dependency: {}", dependency);
+            return;
+        }
 
-            // Register this computation as a dependent of the accessed value
-            Set<WeakReference<Dependent>> dependents = dependentsMap.computeIfAbsent(
-                    dependency,
-                    k -> ConcurrentHashMap.newKeySet()
-            );
+        ComputationContext context = stack.peek();
+        log.trace("Tracking access to dependency {}. Current context: {}", dependency, context);
 
-            // Add the current dependent
-            Dependent currentDependent = context.getDependent();
+        if (context == null) {
+            log.warn("Null computation context found when tracking access to dependency: {}", dependency);
+            return;
+        }
 
-            // Check if already registered
-            boolean found = false;
-            for (WeakReference<Dependent> ref : dependents) {
-                Dependent dep = ref.get();
-                if (dep == currentDependent) {
-                    found = true;
-                    break;
-                }
-            }
+        context.addDependency(dependency);
 
-            if (!found) {
-                dependents.add(new WeakReference<>(currentDependent));
+        // Register this computation as a dependent of the accessed value
+        Set<WeakReference<Dependent>> dependents = dependentsMap.computeIfAbsent(
+                dependency,
+                k -> ConcurrentHashMap.newKeySet()
+        );
+
+        // Add the current dependent
+        Dependent currentDependent = context.getDependent();
+
+        // Check if already registered
+        for (WeakReference<Dependent> ref : dependents) {
+            if (ref.get() == currentDependent) {
+                return; // Already registered.
             }
         }
+        dependents.add(new WeakReference<>(currentDependent));
     }
 
     /**
@@ -104,6 +122,14 @@ public class DependencyTracker {
      */
     public void notifyDependents(Object dependency) {
         Set<WeakReference<Dependent>> dependents = dependentsMap.get(dependency);
+
+        var dependentList = dependents != null ? dependents.stream()
+                .map(WeakReference::get)
+                .filter(Objects::nonNull)
+                .map(Dependent::getName)
+                .toList() : Collections.emptyList();
+        log.trace("Notifying dependents for dependency {}. Current dependents: {}", dependency, dependentList);
+
         if (dependents != null) {
             // Create a copy to avoid concurrent modification
             List<Dependent> activeDependents = new ArrayList<>();
@@ -123,10 +149,10 @@ public class DependencyTracker {
             // Notify all active dependents
             for (Dependent dependent : activeDependents) {
                 try {
-//                    System.out.println("Notifying dependent: " + dependent.getId());
+                    log.debug("Notifying dependent {}", dependent.getName());
                     dependent.onDependencyChanged();
                 } catch (Exception e) {
-                    System.err.println("Error notifying dependent: " + e.getMessage());
+                    log.error("Error notifying dependent {}: {}", dependent.getId(), e.getMessage(), e);
                 }
             }
         }
@@ -175,6 +201,14 @@ public class DependencyTracker {
             return dependent;
         }
 
+        @Override
+        public String toString() {
+            return "ComputationContext" + "@" + Integer.toHexString(System.identityHashCode(this)) + "{" +
+                    "dependent=" + dependent.getName() +
+                    ", dependencies=" + dependencies +
+                    '}';
+        }
+
     }
 
     /**
@@ -190,8 +224,12 @@ public class DependencyTracker {
         /**
          * Gets a unique identifier for this dependent.
          */
-        default Object getId() {
-            return this;
+        default int getId() {
+            return System.identityHashCode(this);
+        }
+
+        default String getName() {
+            return "Dependent@" + Integer.toHexString(getId());
         }
 
     }

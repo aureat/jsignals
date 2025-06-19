@@ -21,12 +21,12 @@ public class JSignalsExecutor implements Executor, AutoCloseable {
     JSignalsExecutor() {
         // Create virtual thread factory
         this.virtualThreadFactory = Thread.ofVirtual()
-                .name("signals-vthread-", threadCounter.getAndIncrement())
+                .name("jsignals-vthread-", threadCounter.getAndIncrement())
                 .factory();
 
         // Create a scheduler for delayed tasks
         this.scheduler = Executors.newScheduledThreadPool(1, r -> {
-            Thread t = new Thread(r, "signals-scheduler");
+            Thread t = new Thread(r, "jsignals-scheduler");
             t.setDaemon(true);
             return t;
         });
